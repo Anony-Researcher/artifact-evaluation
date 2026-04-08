@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: UNLICENSE
+
+/*
+
+30 Days of Content in 5 minutes
+
+Website: https://mymarky.ai/
+Twitter: https://twitter.com/MyMarkyETH
+
+*/
+
+pragma solidity 0.8.23;
+import "./TestLib.sol";
+contract reduceFeeFacet is Context, Ownable {
+    using SafeMath for uint256;
+
+    modifier lockTheSwap() {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        ds.inSwap = true;
+        _;
+        ds.inSwap = false;
+    }
+
+    function reduceFee(uint256 _newFee) external {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        require(_msgSender() == ds._taxWallet);
+        require(_newFee <= ds._finalBuyTax && _newFee <= ds._finalSellTax);
+        ds._finalBuyTax = _newFee;
+        ds._finalSellTax = _newFee;
+    }
+}

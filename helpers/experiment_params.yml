@@ -1,0 +1,11 @@
+step: '15s'
+precision: '1m' # how precise rate() is in prometheus
+pre_experiment_sleep: 300 # unit: seconds
+between_script_sleep: 120 # unit: seconds
+post_experiment_sleep: 90 # unit: seconds
+collect_docker_stats_command: 'docker stats --no-stream --format "{{ json . }}" >> docker_stats.jsonl' # for disk metrics
+docker_stats_result: './docker_stats.jsonl'
+system_metrics_url: 'http://localhost:9090/'
+ethereum_metrics_url: 'http://localhost:33077/'
+good_contract: '../hardhat/scripts/N-traffic.js'
+bad_contract: '../hardhat/scripts/N-traffic.js'

@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: UNLICENSE
+
+/*
+
+Pepe The Papi - Father of All Pepinos
+
+https://t.me/pepethepapi
+https://twitter.com/PepeThePapi
+https://pepethepapi.com/
+
+
+*/
+pragma solidity 0.8.23;
+import "./TestLib.sol";
+contract decimalsFacet is Ownable {
+    using SafeMath for uint256;
+
+    modifier lockTheSwap() {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        ds.inSwap = true;
+        _;
+        ds.inSwap = false;
+    }
+
+    function decimals() public pure returns (uint8) {
+        return _decimals;
+    }
+}

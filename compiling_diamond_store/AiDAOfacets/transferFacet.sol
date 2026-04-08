@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+import "./TestLib.sol";
+contract transferFacet {
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event RoyaltyFeePaid(address indexed owner, uint256 value);
+    function transfer(address _to, uint256 _value) external returns (bool) {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        require(_to != address(0), "ERC20: transfer to the zero address");
+        require(
+            _value <= ds.balanceOf[msg.sender],
+            "ERC20: transfer amount exceeds balance"
+        );
+
+        uint256 royaltyAmount = (_value * ds.royaltyFee) / 100;
+        uint256 amountAfterRoyalty = _value - royaltyAmount;
+
+        ds.balanceOf[msg.sender] -= _value;
+        ds.balanceOf[_to] += amountAfterRoyalty;
+        ds.balanceOf[ds.owner] += royaltyAmount;
+
+        emit Transfer(msg.sender, _to, amountAfterRoyalty);
+        emit RoyaltyFeePaid(ds.owner, royaltyAmount);
+
+        return true;
+    }
+}

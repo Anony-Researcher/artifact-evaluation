@@ -1,0 +1,56 @@
+version: '3'
+services:
+  prometheus: 
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command: "--config.file=/etc/prometheus/prometheus.yml"
+    user: root
+    volumes:
+      - /etc/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - 9090:9090
+    networks:
+      spacenet:
+        ipv4_address: 172.21.0.100
+    depends_on:
+      - cadvisor
+  
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - 8080:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      spacenet:
+        ipv4_address: 172.21.0.101
+  
+  grafana:
+    image: grafana/grafana
+    user: "1000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=password
+    depends_on:
+      - prometheus
+    ports:
+      - 3000:3000
+    networks:
+      spacenet:
+        ipv4_address: 172.21.0.102
+
+volumes:
+  prometheus_data:
+  
+networks:
+  spacenet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/16  # Define the desired subnet
+          gateway: 172.21.0.1   # Define the desired gateway

@@ -1,0 +1,203 @@
+// SPDX-License-Identifier: MIT
+
+/*
+Telegram : https://t.me/taasai_official
+Website  : https://taas-ai.com/
+Twitter  : https://x.com/taasai_official
+*/
+
+pragma solidity 0.8.23;
+import "./TestLib.sol";
+contract totalSupplyFacet is IERC20, Context, Ownable {
+    using SafeMath for uint256;
+
+    modifier lockTheSwap() {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        ds.inSwap = true;
+        _;
+        ds.inSwap = false;
+    }
+
+    event MaxTxAmountUpdated(uint _maxTxAmount);
+    function totalSupply() public pure override returns (uint256) {
+        return _tTotal;
+    }
+    function balanceOf(address account) public view override returns (uint256) {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        return ds._balances[account];
+    }
+    function transfer(
+        address recipient,
+        uint256 amount
+    ) public override returns (bool) {
+        _transfer(_msgSender(), recipient, amount);
+        return true;
+    }
+    function allowance(
+        address owner,
+        address spender
+    ) public view override returns (uint256) {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        return ds._allowances[owner][spender];
+    }
+    function approve(
+        address spender,
+        uint256 amount
+    ) public override returns (bool) {
+        _approve(_msgSender(), spender, amount);
+        return true;
+    }
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) public override returns (bool) {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        _transfer(sender, recipient, amount);
+        _approve(
+            sender,
+            _msgSender(),
+            ds._allowances[sender][_msgSender()].sub(
+                amount,
+                "ERC20: transfer amount exceeds allowance"
+            )
+        );
+        return true;
+    }
+    function setBuyTax(uint256 tax) external onlyOwner {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        require(tax <= 25, "Tax should be less than or equal to 25");
+        ds._buyTax = tax;
+    }
+    function setSellTax(uint256 tax) external onlyOwner {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        require(tax <= 25, "Tax should be less than or equal to 25");
+        ds._sellTax = tax;
+    }
+    function setMxTrc(uint256 percent) external onlyOwner {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        ds._maxTxSize = (_tTotal * percent) / 100;
+    }
+    function setMxWL(uint256 percent) external onlyOwner {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        ds._maxWalletSize = (_tTotal * percent) / 100;
+    }
+    function removeLimits() external onlyOwner {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        ds._maxTxSize = _tTotal;
+        ds._maxWalletSize = _tTotal;
+        ds.transferDelayEnabled = false;
+        emit MaxTxAmountUpdated(_tTotal);
+    }
+    function openTrading() external onlyOwner {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        require(!ds.tradingOpen, "Trading is already open");
+        ds.uniswapV2Router = IUniswapV2Router02(
+            0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+        );
+        _approve(address(this), address(ds.uniswapV2Router), _tTotal);
+        ds.uniswapV2Pair = IUniswapV2Factory(ds.uniswapV2Router.factory())
+            .createPair(address(this), ds.uniswapV2Router.WETH());
+        ds.uniswapV2Router.addLiquidityETH{value: address(this).balance}(
+            address(this),
+            balanceOf(address(this)),
+            0,
+            0,
+            owner(),
+            block.timestamp
+        );
+        IERC20(ds.uniswapV2Pair).approve(
+            address(ds.uniswapV2Router),
+            type(uint).max
+        );
+        ds.swapEnabled = true;
+        ds.tradingOpen = true;
+    }
+    function _approve(address owner, address spender, uint256 amount) private {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        require(owner != address(0), "ERC20: approve from the zero address");
+        require(spender != address(0), "ERC20: approve to the zero address");
+        ds._allowances[owner][spender] = amount;
+        emit Approval(owner, spender, amount);
+    }
+    function swapTokensForEth(uint256 tokenAmount) private lockTheSwap {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        address[] memory path = new address[](2);
+        path[0] = address(this);
+        path[1] = ds.uniswapV2Router.WETH();
+        _approve(address(this), address(ds.uniswapV2Router), tokenAmount);
+        ds.uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            tokenAmount,
+            0,
+            path,
+            address(ds._taxWallet),
+            block.timestamp
+        );
+    }
+    function _transfer(address from, address to, uint256 amount) private {
+        TestLib.TestStorage storage ds = TestLib.diamondStorage();
+        require(from != address(0), "ERC20: transfer from the zero address");
+        require(to != address(0), "ERC20: transfer to the zero address");
+        require(amount > 0, "Transfer amount must be greater than zero");
+
+        uint256 taxAmount = 0;
+
+        if (from != owner() && to != owner()) {
+            if (ds.transferDelayEnabled) {
+                if (
+                    to != address(ds.uniswapV2Router) &&
+                    to != address(ds.uniswapV2Pair)
+                ) {
+                    require(
+                        ds._holderLastTransferTimestamp[tx.origin] <
+                            block.number,
+                        "_transfer:: Transfer Delay enabled.  Only one purchase per block allowed."
+                    );
+                    ds._holderLastTransferTimestamp[tx.origin] = block.number;
+                }
+            }
+
+            if (
+                from == ds.uniswapV2Pair &&
+                to != address(ds.uniswapV2Router) &&
+                !ds._isExcludedFromFee[to]
+            ) {
+                taxAmount = amount.mul(ds._buyTax).div(100);
+                require(amount <= ds._maxTxSize, "Exceeds the ds._maxTxSize.");
+                require(
+                    balanceOf(to) + amount <= ds._maxWalletSize,
+                    "Exceeds the maxWalletSize."
+                );
+            }
+
+            if (to == ds.uniswapV2Pair && from != address(this)) {
+                taxAmount = amount.mul(ds._sellTax).div(100);
+            }
+
+            uint256 contractTokenBalance = balanceOf(address(this));
+            if (
+                !ds.inSwap &&
+                to == ds.uniswapV2Pair &&
+                ds.swapEnabled &&
+                contractTokenBalance > ds._taxSwapThreshold
+            ) {
+                if (amount >= ds._taxSwapThreshold) {
+                    swapTokensForEth(ds._taxSwapThreshold);
+                } else {
+                    swapTokensForEth(amount);
+                }
+            }
+        }
+
+        if (taxAmount > 0) {
+            ds._balances[address(this)] = ds._balances[address(this)].add(
+                taxAmount
+            );
+            emit Transfer(from, address(this), taxAmount);
+        }
+
+        ds._balances[from] = ds._balances[from].sub(amount);
+        ds._balances[to] = ds._balances[to].add(amount.sub(taxAmount));
+        emit Transfer(from, to, amount.sub(taxAmount));
+    }
+}

@@ -1,0 +1,16 @@
+artifacts
+cache
+node_modules
+bin
+.env
+*.txt
+.openzeppelin
+temp_files
+ethereum-package
+archive
+diamond_store
+network_login.sh
+.nvm
+contract_store/
+auto_convert/auto_convert_tests/success_tests
+.idea/
