@@ -1,7 +1,7 @@
 # README
+This repository contains the artifact for the paper: "Sahaj: Towards Efficient Upgradability of Smart Contracts in Blockchain".
 
 Overview
-
 This repository presents an automated framework for converting standard Solidity smart contracts into the Diamond Standard (EIP-2535) architecture.
 
 The system consists of two key components:
